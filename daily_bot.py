@@ -4,6 +4,10 @@ import requests
 import google.generativeai as genai
 import random
 import urllib.parse
+from dotenv import load_dotenv
+
+# Load secrets from .env file if present (Local dev)
+load_dotenv()
 
 # Configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -32,19 +36,20 @@ def generate_astro_content():
     text = response.text
     
     # Simple parsing
-    image_prompt = text.split("IMAGE_PROMPT:")[1].split("CAPTION:")[0].strip()
-    caption_part = text.split("CAPTION:")[1].split("HASHTAGS:")[0].strip()
-    hashtags = text.split("HASHTAGS:")[1].strip()
-    
-    full_caption = f"{caption_part}\n\n{hashtags}"
-    
-    return image_prompt, full_caption
+    try:
+        image_prompt = text.split("IMAGE_PROMPT:")[1].split("CAPTION:")[0].strip()
+        caption_part = text.split("CAPTION:")[1].split("HASHTAGS:")[0].strip()
+        hashtags = text.split("HASHTAGS:")[1].strip()
+        full_caption = f"{caption_part}\n\n{hashtags}"
+        return image_prompt, full_caption
+    except IndexError:
+        print("⚠️ Gemini output format unexpected. Using raw text.")
+        return text[:200], text
 
 def get_image_url(prompt):
     """Generates an image URL from Pollinations.ai."""
     print(f"🎨 Generating image for: {prompt[:50]}...")
     encoded_prompt = urllib.parse.quote(prompt)
-    # Pollinations URL (Seed ensures consistency if we need to retry, but random is fine)
     seed = random.randint(1, 1000000)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1080&seed={seed}&nologo=true&model=flux"
     return image_url
@@ -90,19 +95,17 @@ def post_to_instagram(image_url, caption):
 
 def main():
     if not all([GEMINI_API_KEY, IG_ACCESS_TOKEN, IG_USER_ID]):
-        print("❌ Error: Missing Environment Variables (GEMINI_API_KEY, IG_ACCESS_TOKEN, IG_USER_ID)")
+        print("❌ Error: Missing credentials.")
+        print("Please fill out the '.env' file with your keys.")
         exit(1)
 
     try:
-        # 1. Generate Content
         prompt, caption = generate_astro_content()
         print(f"📝 Prompt: {prompt}")
         
-        # 2. Get Image URL
         image_url = get_image_url(prompt)
         print(f"🖼️ Image URL: {image_url}")
         
-        # 3. Post
         post_to_instagram(image_url, caption)
         
     except Exception as e:
