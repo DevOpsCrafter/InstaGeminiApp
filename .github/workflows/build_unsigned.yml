@@ -1,0 +1,45 @@
+name: Build Unsigned iOSGeminiApp
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build without signing
+        run: |
+          xcodebuild -scheme iOSGeminiApp \
+                     -project iOSGeminiApp.xcodeproj \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -allowProvisioningUpdates \
+                     clean build
+
+      - name: Archive app
+        run: |
+          xcodebuild -scheme iOSGeminiApp \
+                     -project iOSGeminiApp.xcodeproj \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -archivePath ${{ runner.temp }}/iOSGeminiApp.xcarchive \
+                     archive
+
+      - name: Export unsigned .ipa
+        run: |
+          xcodebuild -exportArchive \
+                     -archivePath ${{ runner.temp }}/iOSGeminiApp.xcarchive \
+                     -exportOptionsPlist ${{ github.workspace }}/ExportOptionsUnsigned.plist \
+                     -exportPath ${{ runner.temp }}/output
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOSGeminiApp-unsigned.ipa
+          path: ${{ runner.temp }}/output/*.ipa

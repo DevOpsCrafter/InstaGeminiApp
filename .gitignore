@@ -1,0 +1,20 @@
+// .gitignore for Xcode project
+# Xcode
+DerivedData/
+build/
+*.xcworkspace
+*.xcuserdata
+*.xcuserstate
+# Swift Package Manager
+/.build/
+# CocoaPods
+Pods/
+# Carthage
+Carthage/
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**
+# Misc
+*.swp
+.DS_Store
