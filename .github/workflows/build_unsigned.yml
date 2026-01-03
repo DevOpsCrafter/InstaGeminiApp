@@ -41,12 +41,13 @@ jobs:
                      -archivePath ${{ runner.temp }}/iOSGeminiApp.xcarchive \
                      archive
 
-      - name: Export unsigned .ipa
+      - name: Create unsigned IPA (Manual Zip)
         run: |
-          xcodebuild -exportArchive \
-                     -archivePath ${{ runner.temp }}/iOSGeminiApp.xcarchive \
-                     -exportOptionsPlist ${{ github.workspace }}/ExportOptionsUnsigned.plist \
-                     -exportPath ${{ runner.temp }}/output
+          mkdir -p Payload
+          cp -R ${{ runner.temp }}/iOSGeminiApp.xcarchive/Products/Applications/iOSGeminiApp.app Payload/
+          zip -r iOSGeminiApp-unsigned.ipa Payload
+          mkdir -p ${{ runner.temp }}/output
+          mv iOSGeminiApp-unsigned.ipa ${{ runner.temp }}/output/
 
       - name: Upload unsigned .ipa
         uses: actions/upload-artifact@v4
