@@ -22,7 +22,7 @@ def generate_astro_content():
     """Generates a prompt and caption using Gemini."""
     print("✨ Connecting to Gemini...")
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
 
     prompt = """
     You are 'Astroboli', a mystical AI astrologer. 
