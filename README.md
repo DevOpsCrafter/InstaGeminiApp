@@ -15,21 +15,50 @@ To get the daily bot running, you need to configure **GitHub Secrets**.
 *   **Primary Link**: [**Google AI Studio**](https://aistudio.google.com/)
     *   *Instructions*: Sign in, then look for **"Get API key"** in the top-left sidebar.
 
-#### 2. Instagram/Meta Setup (Using your Ads/Business Account)
-Since you already have a Meta Ads account, you have a Business Portfolio.
+#### 2. Instagram/Meta Setup (Simplified Process)
 
-*   **Step A: Create App**: [**Meta Developers - My Apps**](https://developers.facebook.com/apps/)
-    *   Click **Create App** > Select **"Business"** (or "Other" > "Business").
-    *   **Important**: When asked, select your **existing Business Portfolio** (Ads Account) to link them.
-    *   Add **Instagram Graph API** product > "Set Up".
-*   **Step B: Get Tokens**: [**Graph API Explorer**](https://developers.facebook.com/tools/explorer/)
-    *   Select your new App.
-    *   Get User Access Token.
-    *   Add Permission: `instagram_content_publish`.
+**Step A: Create Your Meta App** (5 minutes)
+1. Go to [**Meta Developers - My Apps**](https://developers.facebook.com/apps/)
+2. Click **"Create App"** → Select **"Business"**
+3. When asked, select your **existing Business Portfolio** (your Ads account)
+4. Name it "Astroboli Bot" and click **Create App**
+
+**Step B: Add Instagram Product**
+1. In your app dashboard, click **"Add Product"**
+2. Find **Instagram** and click **"Set Up"**
+3. Also add **Instagram Graph API** if shown separately
+
+**Step C: Get App Credentials**
+1. Go to **Settings** → **Basic** (in the left sidebar)
+2. Copy your **App ID** and **App Secret** (click "Show" to reveal it)
+3. Save these - you'll need them for token generation
+
+**Step D: Get Your Instagram User ID**
+1. Go to [**Instagram Professional Dashboard**](https://www.instagram.com/accounts/login/?next=/accounts/manage_access/)
+2. Find your Instagram User ID in your profile settings, or
+3. Use this quick method: Visit [**Find My Instagram ID**](https://www.instagram.com/developer/) and follow the instructions
+
+> **Note**: After creating the app, you'll use a helper script to generate your access token automatically.
 
 
 
-### Step 2: Add Secrets to GitHub
+### Step 2: Generate Access Token
+
+After creating your Meta app, use the helper script to get your access token:
+
+```powershell
+python generate_token.py
+```
+
+The script will:
+1. Ask for your App ID and App Secret
+2. Generate an OAuth link for you to click
+3. Guide you through getting a short-lived token
+4. Help you exchange it for a long-lived token (valid 60 days)
+
+Copy the final long-lived token - you'll add it to `secrets.env` in the next step.
+
+### Step 3: Add Secrets to GitHub
 1.  Go to this repository on GitHub.
 2.  Click **Settings** > **Secrets and variables** > **Actions**.
 3.  Click **New repository secret**.
