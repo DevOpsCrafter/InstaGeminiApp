@@ -74,8 +74,8 @@ def _clean_image_prompt(p: str) -> str:
     p = p.replace('\n', ' ').strip()
     # Collapse multiple spaces
     p = re.sub(r'\s+', ' ', p)
-    # Limit length to a safe size for image API
-    return p[:2000]
+    # Limit length to safe size for URL encoding (800 chars ~= 2000 URL-encoded)
+    return p[:800]
 
 
 def generate_astro_content():
@@ -96,77 +96,32 @@ def generate_astro_content():
     brand_hashtag = brand_name.replace(" ", "")  # Remove spaces for hashtag
 
     prompt = f"""
-    You are '{brand_name}' — a world-class digital artist and mystic astrologer creating MUSEUM-QUALITY cosmic art for astroboli.com.
+    You are '{brand_name}' — a digital artist creating cosmic art for astroboli.com.
 
-    Generate a JSON object for today's horoscope with these keys:
+    Generate a JSON object with these keys:
 
-    - "image_prompt": Create a MASTERPIECE-LEVEL prompt for Flux AI image generator. This must rival professional art. Include ALL of these elements:
-    
-      **MANDATORY QUALITY BOOSTERS (include at end of every prompt):**
-      masterpiece, best quality, ultra high resolution, 8K UHD, HDR, professional photography, award-winning, trending on ArtStation, hyperdetailed, photorealistic lighting, cinematic color grading, octane render, unreal engine 5, ray tracing, subsurface scattering
+    - "image_prompt": CONCISE prompt for Flux AI (MAX 400 CHARACTERS). Include:
+      * One mystical cosmic subject (celestial being, zodiac symbol, cosmic scene)
+      * Art style reference (e.g., "by Peter Mohrbacher", "cosmic surrealism")
+      * Colors: purples, golds, teals
+      * End with: "masterpiece, 8K, square 1:1, no text"
       
-      **ART STYLE (pick one per day and commit fully):**
-      - "digital painting by Greg Rutkowski and Alphonse Mucha"
-      - "ethereal fantasy art by Peter Mohrbacher"
-      - "cosmic surrealism by Android Jones"
-      - "luminous art nouveau with gold leaf accents"
-      - "hyper-detailed concept art for AAA video game"
-      - "cinematic matte painting, ILM VFX quality"
-      - "mystical realism by Kinuko Y. Craft"
-      
-      **COLOR MASTERY:**
-      - Rich color harmony: deep cosmic purples (#2D1B4E), celestial golds (#D4AF37), ethereal teals (#4ECDC4)
-      - Dynamic color contrast and complementary palettes
-      - Iridescent and holographic shimmer effects
-      - Bioluminescent glowing accents
-      
-      **LIGHTING EXCELLENCE:**
-      - Volumetric god rays piercing through cosmic clouds
-      - Rim lighting with ethereal glow halos
-      - Caustic light patterns from crystalline elements  
-      - Dramatic chiaroscuro with soft ambient fill
-      - Golden hour warmth with cool shadow undertones
-      
-      **COMPOSITION RULES:**
-      - Strong focal point with depth of field (f/1.4 bokeh)
-      - Rule of thirds with dynamic negative space
-      - Leading lines drawing eye to center
-      - Layered foreground/midground/background elements
-      
-      **COSMIC ELEMENTS (mix 3-4):**
-      - Luminous celestial bodies with visible atmospheres
-      - Intricate sacred geometry patterns (Flower of Life, Metatron's Cube)
-      - Zodiac constellation overlays with connected stars
-      - Flowing nebula clouds with particle dust
-      - Crystal formations with internal light refraction
-      - Ethereal spirit silhouettes or energy beings
-      - Mystical portals with swirling energy
-      
-      **TECHNICAL REQUIREMENTS:**
-      square format, aspect ratio 1:1, 1080x1080, no text, no watermarks, no logos, clean composition, centered subject, Instagram-optimized
-      
-      **AVOID:** blurry, low quality, text, watermarks, signatures, deformed, ugly, amateur, oversaturated, muddy colors
-
-    - "caption": Engaging Instagram caption (≤280 chars):
+    - "caption": Instagram caption (≤280 chars):
       * Weave {brand_name} naturally into mystical insight
-      * Include actionable cosmic guidance for today
       * End with "✨ Visit astroboli.com for your reading"
-      * Use 2-3 emojis: 🌙 ✨ 🔮 ⭐ 🌟 💫 ♈♉♊♋♌♍♎♏♐♑♒♓
+      * Use 2-3 emojis: 🌙 ✨ 🔮 ⭐ 🌟
       
-    - "hashtags": Array of exactly 5 hashtags:
-      * First: #{brand_hashtag}
-      * Include mix of: #Astrology #CosmicEnergy #ZodiacSigns #Spirituality #Universe #Manifestation #DailyHoroscope #MysticArt
-      
-    - "alt_text": Vivid 1-2 sentence description for accessibility.
+    - "hashtags": Array of exactly 5 hashtags (first: #{brand_hashtag})
+    - "alt_text": 1 sentence description
 
-    Return ONLY valid JSON. No markdown, no explanation.
+    Return ONLY valid JSON.
 
     Example:
     {{
-      "image_prompt": "Ethereal cosmic queen emerging from a luminous nebula, flowing hair made of stardust and aurora colors, sacred geometry halo behind her head, bioluminescent crystal crown, volumetric god rays piercing purple cosmic clouds, floating zodiac symbols around her, art by Peter Mohrbacher and Alphonse Mucha, deep purple and gold color palette, mystical and powerful mood, hyperdetailed, 8K UHD, masterpiece, best quality, trending on ArtStation, cinematic lighting, octane render, square format 1:1, no text, no watermarks",
-      "caption": "The cosmos crowns you with infinite potential today. {brand_name} channels pure celestial energy for your transformation. ✨ Visit astroboli.com for your reading 🌙👑",
+      "image_prompt": "Ethereal cosmic queen with stardust hair emerging from nebula, sacred geometry halo, bioluminescent crown, by Peter Mohrbacher, purple and gold, volumetric lighting, masterpiece, 8K, square 1:1, no text",
+      "caption": "The cosmos crowns you today. {brand_name} channels celestial energy. ✨ Visit astroboli.com for your reading 🌙",
       "hashtags": ["#{brand_hashtag}", "#Astrology", "#CosmicEnergy", "#Spirituality", "#ZodiacSigns"],
-      "alt_text": "A majestic cosmic queen with stardust hair emerging from purple nebula clouds, wearing a glowing crystal crown."
+      "alt_text": "A cosmic queen with stardust hair and sacred geometry halo."
     }}
     """
 
