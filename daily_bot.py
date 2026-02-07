@@ -312,14 +312,35 @@ def get_image_url(prompt):
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1080&seed={seed}&nologo=true&model=flux"
     return image_url
 
-def download_image(url):
-    """Download image from URL and return bytes."""
+def download_image(url, max_retries=3):
+    """Download image from URL and return bytes. Retries on transient errors."""
     print("Downloading image...")
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.content
-    else:
-        raise Exception(f"Failed to download image: {response.status_code}")
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=60)
+            if response.status_code == 200:
+                return response.content
+            elif response.status_code in [502, 503, 504]:
+                # Transient server error - retry with backoff
+                wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
+                print(f"  Server error {response.status_code}, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                raise Exception(f"Failed to download image: {response.status_code}")
+        except requests.exceptions.Timeout:
+            wait_time = (attempt + 1) * 5
+            print(f"  Request timeout, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+            time.sleep(wait_time)
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 5
+                print(f"  Request error: {e}, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                raise
+    
+    raise Exception(f"Failed to download image after {max_retries} attempts")
 
 def process_for_instagram(image_bytes):
     """Process image for Instagram - ensure exact 1:1 ratio (1080x1080), NO text overlay."""
