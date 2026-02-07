@@ -32,6 +32,9 @@ FAL_KEY = os.environ.get("FAL_KEY")  # https://fal.ai
 LUMA_API_KEY = os.environ.get("LUMA_API_KEY")  # https://lumalabs.ai
 REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")  # https://replicate.com
 
+# Pollinations.ai API Key (required for authenticated requests)
+POLLINATION_API_KEY = os.environ.get("POLLINATION_API_KEY")  # https://enter.pollinations.ai
+
 def _extract_json_from_text(text: str) -> dict | None:
     """Attempt to extract and parse a JSON object from free-form text.
     This handles cases where the model wraps JSON in markdown code fences (```json ... ```)
@@ -96,32 +99,37 @@ def generate_astro_content():
     brand_hashtag = brand_name.replace(" ", "")  # Remove spaces for hashtag
 
     prompt = f"""
-    You are '{brand_name}' — a digital artist creating cosmic art for astroboli.com.
+    You are '{brand_name}' — a world-class digital artist creating cosmic art for astroboli.com.
 
     Generate a JSON object with these keys:
 
-    - "image_prompt": CONCISE prompt for Flux AI (MAX 400 CHARACTERS). Include:
-      * One mystical cosmic subject (celestial being, zodiac symbol, cosmic scene)
-      * Art style reference (e.g., "by Peter Mohrbacher", "cosmic surrealism")
-      * Colors: purples, golds, teals
-      * End with: "masterpiece, 8K, square 1:1, no text"
+    - "image_prompt": Create a VIVID prompt for AI image generator (~400-600 chars). Include:
+      * Main subject: mystical cosmic being, zodiac symbol, or celestial scene
+      * Art style: "by Peter Mohrbacher", "cosmic surrealism", or "ethereal fantasy"
+      * Colors: cosmic purples, celestial golds, ethereal teals
+      * Lighting: volumetric rays, ethereal glow, dramatic lighting
+      * End with: "masterpiece, 8K, hyperdetailed, square 1:1, no text, no watermarks"
       
     - "caption": Instagram caption (≤280 chars):
       * Weave {brand_name} naturally into mystical insight
+      * Include cosmic guidance for today
       * End with "✨ Visit astroboli.com for your reading"
-      * Use 2-3 emojis: 🌙 ✨ 🔮 ⭐ 🌟
+      * Use 2-3 emojis: 🌙 ✨ 🔮 ⭐ 🌟 💫
       
-    - "hashtags": Array of exactly 5 hashtags (first: #{brand_hashtag})
-    - "alt_text": 1 sentence description
+    - "hashtags": Array of exactly 5 hashtags:
+      * First: #{brand_hashtag}
+      * Mix of: #Astrology #CosmicEnergy #ZodiacSigns #Spirituality #Manifestation
+      
+    - "alt_text": Vivid 1-2 sentence description.
 
     Return ONLY valid JSON.
 
     Example:
     {{
-      "image_prompt": "Ethereal cosmic queen with stardust hair emerging from nebula, sacred geometry halo, bioluminescent crown, by Peter Mohrbacher, purple and gold, volumetric lighting, masterpiece, 8K, square 1:1, no text",
-      "caption": "The cosmos crowns you today. {brand_name} channels celestial energy. ✨ Visit astroboli.com for your reading 🌙",
+      "image_prompt": "Ethereal cosmic queen with flowing stardust hair emerging from luminous nebula, sacred geometry halo behind her head, bioluminescent crystal crown, volumetric god rays through purple cosmic clouds, floating zodiac symbols, art by Peter Mohrbacher, deep purple and gold palette, mystical atmosphere, masterpiece, 8K, hyperdetailed, square 1:1, no text, no watermarks",
+      "caption": "The cosmos crowns you with infinite potential today. {brand_name} channels pure celestial energy for your journey. ✨ Visit astroboli.com for your reading 🌙👑",
       "hashtags": ["#{brand_hashtag}", "#Astrology", "#CosmicEnergy", "#Spirituality", "#ZodiacSigns"],
-      "alt_text": "A cosmic queen with stardust hair and sacred geometry halo."
+      "alt_text": "A cosmic queen with stardust hair emerging from purple nebula clouds, wearing a glowing crystal crown."
     }}
     """
 
@@ -259,43 +267,214 @@ def generate_video_prompt():
         return "Mystical cosmic astrology scene with swirling galaxies, glowing zodiac constellations, ethereal purple and gold aurora lights, magical stardust particles floating through space, cinematic dreamy atmosphere. FORMAT: Instagram Reels vertical 9:16 aspect ratio, 10-15 seconds duration, 1080x1920 resolution."
 
 
-def get_image_url(prompt):
-    """Generates an image URL from Pollinations.ai."""
-    print(f"Generating image for: {prompt[:50]}...")
-    encoded_prompt = urllib.parse.quote(prompt)
-    seed = random.randint(1, 1000000)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1080&seed={seed}&nologo=true&model=flux"
-    return image_url
+def generate_image(prompt):
+    """
+    Generate image using multiple providers with automatic fallback.
+    Priority: Pollinations.ai → AI Horde → Hugging Face Inference
+    """
+    print(f"🖼️ Generating image: {prompt[:60]}...")
+    
+    providers = [
+        ("Pollinations.ai", _try_pollinations_image),
+        ("AI Horde", _try_aihorde_image),
+        ("Hugging Face", _try_huggingface_image),
+    ]
+    
+    for name, provider_func in providers:
+        try:
+            print(f"  Trying: {name}...")
+            result = provider_func(prompt)
+            if result and len(result) > 10000:  # Valid image > 10KB
+                print(f"  ✅ {name} succeeded: {len(result)//1024}KB")
+                return result
+        except Exception as e:
+            print(f"  ❌ {name} failed: {str(e)[:80]}")
+            continue
+    
+    raise Exception("All image providers failed")
 
-def download_image(url, max_retries=3):
-    """Download image from URL and return bytes. Retries on transient errors."""
-    print("Downloading image...")
+
+def _try_pollinations_image(prompt, max_retries=3):
+    """
+    Try Pollinations.ai image generation with new API.
+    Uses gen.pollinations.ai endpoint with FLUX.2 Klein 9B model.
+    Requires POLLINATION_API_KEY for authenticated requests.
+    """
+    if not POLLINATION_API_KEY:
+        raise Exception("POLLINATION_API_KEY not configured")
+    
+    # New API endpoint: gen.pollinations.ai/image/{prompt}
+    encoded_prompt = urllib.parse.quote(prompt[:1000])  # Longer prompts allowed with new API
+    seed = random.randint(1, 2147483647)
+    
+    # Use FLUX.2 Klein 9B model (or klein-large for higher quality)
+    url = f"https://gen.pollinations.ai/image/{encoded_prompt}?model=klein&width=1024&height=1024&seed={seed}"
+    
+    headers = {
+        "Authorization": f"Bearer {POLLINATION_API_KEY}"
+    }
     
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, timeout=60)
+            print(f"    Pollinations (FLUX.2 Klein) attempt {attempt + 1}/{max_retries}...")
+            response = requests.get(url, headers=headers, timeout=120)
+            
             if response.status_code == 200:
-                return response.content
-            elif response.status_code in [502, 503, 504]:
-                # Transient server error - retry with backoff
-                wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
-                print(f"  Server error {response.status_code}, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                raise Exception(f"Failed to download image: {response.status_code}")
+                content_type = response.headers.get('content-type', '')
+                if 'image' in content_type and len(response.content) > 5000:
+                    return response.content
+                raise Exception(f"Invalid response: {content_type}, size: {len(response.content)}")
+            elif response.status_code == 401:
+                raise Exception("Invalid API key - check POLLINATION_API_KEY")
+            elif response.status_code == 402:
+                raise Exception("Insufficient pollen balance")
+            elif response.status_code in [500, 502, 503, 504]:
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 10
+                    print(f"    Server error {response.status_code}, retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+            
+            # Try to get error details from JSON response
+            try:
+                error_data = response.json()
+                error_msg = error_data.get('error', {}).get('message', f'HTTP {response.status_code}')
+                raise Exception(error_msg[:100])
+            except:
+                raise Exception(f"HTTP {response.status_code}")
+                
         except requests.exceptions.Timeout:
-            wait_time = (attempt + 1) * 5
-            print(f"  Request timeout, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
-            time.sleep(wait_time)
+            if attempt < max_retries - 1:
+                wait = (attempt + 1) * 10
+                print(f"    Timeout, retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise Exception("Request timeout after all retries")
         except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 5
-                print(f"  Request error: {e}, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                raise
+                time.sleep(5)
+                continue
+            raise Exception(f"Request error: {str(e)[:50]}")
     
-    raise Exception(f"Failed to download image after {max_retries} attempts")
+    return None
+
+
+def _try_aihorde_image(prompt, max_wait=180):
+    """
+    Try AI Horde (stablehorde.net) - free community-powered image generation.
+    Uses anonymous API key (lower priority but works without signup).
+    """
+    api_url = "https://stablehorde.net/api/v2"
+    api_key = "0000000000"  # Anonymous API key
+    
+    headers = {
+        "apikey": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    # Submit generation request
+    payload = {
+        "prompt": prompt[:1000],
+        "params": {
+            "width": 1024,
+            "height": 1024,
+            "steps": 25,
+            "sampler_name": "k_euler_a",
+            "cfg_scale": 7,
+        },
+        "nsfw": False,
+        "models": ["stable_diffusion_xl"],
+        "r2": True,  # Use R2 storage for faster downloads
+    }
+    
+    # Submit job
+    response = requests.post(f"{api_url}/generate/async", headers=headers, json=payload, timeout=30)
+    if response.status_code != 202:
+        raise Exception(f"Submit failed: {response.status_code} - {response.text[:100]}")
+    
+    data = response.json()
+    job_id = data.get("id")
+    if not job_id:
+        raise Exception("No job ID returned")
+    
+    print(f"    AI Horde job submitted: {job_id[:20]}...")
+    
+    # Poll for completion
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        time.sleep(5)
+        
+        status_resp = requests.get(f"{api_url}/generate/check/{job_id}", headers=headers, timeout=30)
+        if status_resp.status_code != 200:
+            continue
+            
+        status = status_resp.json()
+        
+        if status.get("done"):
+            # Get result
+            result_resp = requests.get(f"{api_url}/generate/status/{job_id}", headers=headers, timeout=30)
+            if result_resp.status_code == 200:
+                result = result_resp.json()
+                generations = result.get("generations", [])
+                if generations:
+                    img_url = generations[0].get("img")
+                    if img_url:
+                        # Download actual image
+                        img_resp = requests.get(img_url, timeout=60)
+                        if img_resp.status_code == 200:
+                            return img_resp.content
+            break
+            
+        elif status.get("faulted"):
+            raise Exception("Generation faulted")
+        
+        queue_pos = status.get("queue_position", "?")
+        wait_time = status.get("wait_time", "?")
+        print(f"    Queue position: {queue_pos}, ETA: {wait_time}s")
+    
+    raise Exception(f"Timeout after {max_wait}s")
+
+
+def _try_huggingface_image(prompt):
+    """
+    Try Hugging Face Inference API with SDXL model (free tier).
+    """
+    api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    
+    # Try without auth first (limited free inference)
+    headers = {"Content-Type": "application/json"}
+    
+    payload = {
+        "inputs": prompt[:500],
+        "parameters": {
+            "width": 1024,
+            "height": 1024,
+        }
+    }
+    
+    response = requests.post(api_url, headers=headers, json=payload, timeout=120)
+    
+    if response.status_code == 200:
+        # Response is the image bytes directly
+        if response.content and len(response.content) > 5000:
+            return response.content
+    
+    raise Exception(f"HTTP {response.status_code}: {response.text[:100]}")
+
+
+def get_image_url(prompt):
+    """Legacy function - now returns None as we use direct generation."""
+    return None
+
+
+def download_image(url):
+    """Legacy function - kept for compatibility but generate_image is preferred."""
+    if url is None:
+        raise Exception("Use generate_image() instead")
+    response = requests.get(url, timeout=60)
+    if response.status_code == 200:
+        return response.content
+    raise Exception(f"Failed: {response.status_code}")
 
 def process_for_instagram(image_bytes):
     """Process image for Instagram - ensure exact 1:1 ratio (1080x1080), NO text overlay."""
@@ -1271,12 +1450,8 @@ def main():
             print("Dry-run validation passed: 5 hashtags (including #AstroboliAI) found.")
             exit(0)
 
-        # 2. Get Image URL
-        image_url = get_image_url(prompt)
-        print(f"🖼️ Image URL: {image_url}")
-        
-        # 3. Download Image
-        image_data = download_image(image_url)
+        # 2. Generate Image (with multi-provider fallback)
+        image_data = generate_image(prompt)
         
         # 4. Process image for Instagram (1:1 ratio, 1080x1080)
         processed_image = process_for_instagram(image_data)
