@@ -1026,7 +1026,7 @@ def _try_pollinations_video(prompt, duration):
     print("    ⚠️ Pollinations video API currently unavailable")
     return None
 
-def generate_reel(image_bytes, caption_text, brand_name):
+def generate_reel(image_bytes, caption_text, brand_name, video_prompt=None):
     """Generate a professional Instagram Reel with AI voiceover and video effects."""
     print("🎬 Generating Professional Instagram Reel...")
     
@@ -1079,10 +1079,11 @@ def generate_reel(image_bytes, caption_text, brand_name):
         print(f"Reel duration target: {DURATION:.1f}s")
         
         # ===== TRY AI VIDEO GENERATION FIRST =====
-        # Create a cosmic video prompt for Pollinations.ai
-        video_prompt = f"Mystical cosmic astrology scene, swirling galaxies, zodiac constellations, ethereal purple and gold colors, glowing stars, nebula clouds, magical celestial energy, cinematic, 4K quality, slow motion particles, dreamy atmosphere"
+        # Use the dynamically generated video prompt, fall back to a default if not provided
+        if not video_prompt:
+            video_prompt = "Mystical cosmic astrology scene, swirling galaxies, zodiac constellations, ethereal purple and gold colors, glowing stars, nebula clouds, magical celestial energy, cinematic, 4K quality, slow motion particles, dreamy atmosphere"
         
-        # Try to download AI-generated video from Pollinations.ai
+        # Try to download AI-generated video
         ai_video_data = download_ai_video(video_prompt, duration=min(10, int(DURATION)))
         
         use_ai_video = ai_video_data is not None
@@ -1311,7 +1312,7 @@ def main():
         # Video prompt for manual creation if automation fails (generated dynamically)
         video_prompt = generate_video_prompt()
         
-        reel_data = generate_reel(image_data, caption, brand_name)
+        reel_data = generate_reel(image_data, caption, brand_name, video_prompt=video_prompt)
         
         # 6. Send Email with post image and reel (or video prompt if reel failed)
         send_email(processed_image, caption, reel_data, video_prompt=video_prompt if reel_data is None else None)
