@@ -1,34 +1,26 @@
 # -----------------------------------------------------------------------------
-# Instagram Carousel Posts — Multiple Insta IDs
+# Astroboli Instagram Carousel — Single post
 # -----------------------------------------------------------------------------
-# Generates a 5-slide carousel (image + caption) per Instagram account and
-# emails everything ready to post. Each account gets its own run so content
-# is tailored (projectwuhu, sacredwhisperers, revivalofwisdom).
+# Generates one 5-slide carousel for Astroboli's Instagram and emails it.
+# Content style is inspired by @projectwuhu, @sacredwhisperers, @revivalofwisdom
+# (wisdom/quote carousels) but themed for Astroboli (cosmic, astrology, mystical).
+# One run = one carousel you can post directly to Astroboli as a carousel.
 #
-# Same stack as Daily Astroboli Post: Gemini (content), Pollinations (images),
-# Gmail (delivery). Run manually or on a schedule (e.g. weekly).
+# Same stack as Daily Astroboli Post: Gemini, Pollinations, Gmail.
 # -----------------------------------------------------------------------------
 
-name: Instagram Carousel Posts (Multiple IDs)
+name: Astroboli Instagram Carousel
 
 on:
   schedule:
     # Weekly: Sundays at 11:00 UTC (avoid same hour as daily post)
     - cron: '0 11 * * 0'
   workflow_dispatch:
-    # Manual run from Actions tab; choose which account(s) via matrix or run all
 
 jobs:
-  carousel-for-insta-id:
-    name: Carousel for @${{ matrix.insta_id }}
+  astroboli-carousel:
+    name: Generate Astroboli carousel
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        insta_id:
-          - projectwuhu
-          - sacredwhisperers
-          - revivalofwisdom
 
     steps:
       - name: Checkout repository
@@ -48,9 +40,8 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
 
-      - name: Generate and send carousel for @${{ matrix.insta_id }}
+      - name: Generate and send Astroboli carousel
         env:
-          INSTA_ID: ${{ matrix.insta_id }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YOUR_EMAIL: ${{ secrets.YOUR_EMAIL }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}

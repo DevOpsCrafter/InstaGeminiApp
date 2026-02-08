@@ -168,13 +168,8 @@ Edit the caption generation logic in `daily_bot.py`
 ### Multiple Posts Per Day
 Duplicate the cron schedule in `daily_post.yml`
 
-### Instagram Carousel (Multiple IDs)
-The **Instagram Carousel Posts (Multiple IDs)** workflow generates a 5-slide carousel per account and emails it. Target accounts (set in the workflow matrix):
-- **projectwuhu** — creative projects, minimal wisdom
-- **sacredwhisperers** — sacred wisdom, meditation, soulful guidance
-- **revivalofwisdom** — classic wisdom, philosophy, timeless insights
-
-Run from **Actions** → **Instagram Carousel Posts (Multiple IDs)** → **Run workflow**. Each run creates three jobs (one per account). Same secrets as the daily post (`GEMINI_API_KEY`, `YOUR_EMAIL`, `EMAIL_PASSWORD`, `POLLINATION_API_KEY`).
+### Astroboli Instagram Carousel
+The **Astroboli Instagram Carousel** workflow generates one 5-slide carousel for Astroboli's Instagram and emails it. Content style is inspired by wisdom/quote accounts (@projectwuhu, @sacredwhisperers, @revivalofwisdom) but themed for Astroboli (cosmic, astrology, mystical). One run = one carousel ready to post directly. Run from **Actions** → **Astroboli Instagram Carousel** → **Run workflow**. Same secrets as the daily post.
 
 ---
 
@@ -189,8 +184,8 @@ iOSGeminiApp/
 ├── sync_secrets.ps1          # Upload secrets to GitHub
 ├── .github/workflows/
 │   ├── daily_post.yml        # Daily single post + reel
-│   └── insta_carousel_posts.yml  # Weekly carousel for multiple Insta IDs
-├── carousel_bot.py           # Carousel generator (5 slides + caption per INSTA_ID)
+│   └── insta_carousel_posts.yml  # Weekly Astroboli carousel (single post)
+├── carousel_bot.py           # Astroboli carousel (5 slides + caption, style from reference accounts)
 └── README.md                 # This file
 ```
 

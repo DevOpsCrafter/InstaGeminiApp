@@ -1,5 +1,21 @@
 # Security Cleanup Steps — Automated helper
 
+## ⚠️ If secrets.env was ever committed to GitHub
+
+The file `secrets.env` was at one point committed (e.g. in commit `714ff15...`). It contains real values for `GEMINI_API_KEY`, `YOUR_EMAIL`, and `EMAIL_PASSWORD`. You must:
+
+1. **Rotate all exposed secrets immediately**
+   - **Gemini**: Revoke the key at [Google AI Studio](https://aistudio.google.com/) and create a new one. Update GitHub Actions secrets.
+   - **Gmail**: Revoke the App Password at [Google App Passwords](https://myaccount.google.com/apppasswords) and create a new one. Update GitHub Actions secrets.
+2. **Remove the file from Git history** so the old secrets are no longer in the repo:
+   - Using BFG: `bfg --delete-files secrets.env` then `git reflog expire --expire=now --all && git gc --prune=now --aggressive` and force-push.
+   - Or use [git-filter-repo](https://github.com/newren/git-filter-repo): `git filter-repo --path secrets.env --invert-paths` then force-push.
+3. **Ensure secrets.env is in .gitignore** (it already is). Never commit it again.
+
+The file has been deleted from the working tree; the next commit will remove it from the current branch. History purge (step 2) is still required to remove it from past commits.
+
+---
+
 I created a PowerShell helper script `scripts/clean_and_purge_secrets.ps1` to automate committing sanitized changes and purging a leaked secret from git history using BFG.
 
 Before you run the script:
