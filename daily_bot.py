@@ -554,20 +554,19 @@ async def generate_voiceover(text, output_path):
 def download_ai_video(prompt, duration=8):
     """
     Download AI-generated video from multiple providers.
-    Priority: Browser automation (free) > API keys > Free fallbacks
+    Priority: Pollinations (with API key) > API keys > Free fallbacks
     """
     print(f"🎥 Generating AI video: {prompt[:60]}...")
     
     providers = []
     
-    # 1. Browser automation (100% free, best option)
-    providers.append(_try_browser_video)
+    # 1. Pollinations.ai video API (best option if API key configured)
+    if POLLINATION_API_KEY:
+        providers.append(_try_pollinations_video)
     
     # 2. Authenticated APIs (if configured)
     if FAL_KEY:
         providers.append(_try_fal_video)
-    if LUMA_API_KEY:
-        providers.append(_try_luma_api_video)
     if REPLICATE_API_TOKEN:
         providers.append(_try_replicate_video)
     
@@ -589,6 +588,79 @@ def download_ai_video(prompt, duration=8):
             continue
     
     print("❌ All video providers failed")
+    return None
+
+
+def _try_pollinations_video(prompt, duration=8):
+    """
+    Generate video using Pollinations.ai video API.
+    Uses Wan 2.6 model for text-to-video generation.
+    """
+    print("  Trying: Pollinations.ai (Wan 2.6)...")
+    
+    if not POLLINATION_API_KEY:
+        raise Exception("POLLINATION_API_KEY not configured")
+    
+    # Clamp duration to valid range (5-10 seconds for wan)
+    duration = max(5, min(10, duration))
+    
+    # Construct video generation URL with Wan 2.6 model
+    encoded_prompt = urllib.parse.quote(prompt[:500])
+    url = f"https://gen.pollinations.ai/image/{encoded_prompt}?model=wan&duration={duration}&aspectRatio=9:16"
+    
+    headers = {
+        "Authorization": f"Bearer {POLLINATION_API_KEY}"
+    }
+    
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            # Video generation takes longer - use extended timeout
+            print(f"    Attempt {attempt + 1}/{max_retries}: Generating {duration}s video with Wan 2.6...")
+            response = requests.get(url, headers=headers, timeout=300)
+            
+            print(f"    Response: {response.status_code}, Content-Type: {response.headers.get('content-type', 'unknown')}, Size: {len(response.content)} bytes")
+            
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'video' in content_type and len(response.content) > 50000:
+                    print(f"    ✅ Pollinations Wan 2.6 video: {len(response.content)//1024}KB")
+                    return response.content
+                elif len(response.content) > 50000:
+                    # Sometimes content-type might be wrong, but it's still video
+                    print(f"    ⚠️ Content-type is {content_type}, but file is {len(response.content)//1024}KB - assuming video")
+                    return response.content
+                else:
+                    raise Exception(f"Invalid response: {content_type}, {len(response.content)} bytes")
+            elif response.status_code == 401:
+                raise Exception("Invalid API key - check POLLINATION_API_KEY")
+            elif response.status_code == 402:
+                raise Exception("Insufficient pollen balance")
+            elif response.status_code in [500, 502, 503, 504]:
+                if attempt < max_retries - 1:
+                    print(f"    Server error {response.status_code}, retrying...")
+                    time.sleep(10)
+                    continue
+                raise Exception(f"Server error: HTTP {response.status_code}")
+            else:
+                try:
+                    error_data = response.json()
+                    msg = error_data.get('error', {}).get('message', f'HTTP {response.status_code}')
+                    raise Exception(msg[:100])
+                except ValueError:
+                    raise Exception(f"HTTP {response.status_code}")
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"    Timeout, retrying...")
+                continue
+            raise Exception("Request timeout")
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                print(f"    Request error: {e}, retrying...")
+                time.sleep(5)
+                continue
+            raise Exception(f"Request error: {str(e)[:50]}")
+    
     return None
 
 def _try_browser_video(prompt, duration):
