@@ -1,19 +1,21 @@
 """
 Instagram Carousel Post Bot — Astroboli only
 
-Generates one 5-slide carousel (images + caption) for Astroboli's Instagram.
-Content style is inspired by wisdom/quote carousel accounts: @projectwuhu,
-@sacredwhisperers, @revivalofwisdom — minimal, contemplative, shareable —
-but themed for Astroboli (cosmic, astrology, mystical, astroboli.com).
-One run = one carousel ready to post directly as an Instagram carousel.
+Generates one 5-slide carousel for Astroboli's Instagram. Each slide has
+MEANINGFUL TEXT ON THE IMAGE (like @projectwuhu, @sacredwhisperers, @revivalofwisdom):
+short wisdom/quote lines that are interesting to read, overlaid on cosmic imagery.
+One run = one carousel ready to post directly.
 """
 
 import os
 import random
 import argparse
+from io import BytesIO
 from dotenv import load_dotenv
 
 load_dotenv()
+
+from PIL import Image, ImageDraw, ImageFont
 
 # Reuse daily_bot components
 from daily_bot import (
@@ -34,20 +36,116 @@ import smtplib
 # Number of carousel slides (Instagram allows 2–10)
 CAROUSEL_SLIDES = 5
 
-# Reference accounts: content style to emulate (wisdom, sacred, revival — not for posting to them)
+# Reference accounts: they put SHORT, MEANINGFUL TEXT ON EACH SLIDE — wisdom quotes
+# that stop the scroll and are interesting to read. One idea per slide.
 STYLE_REFERENCE_ACCOUNTS = (
-    "@projectwuhu — creative projects, minimal wisdom, modern spirituality, clean visuals\n"
-    "@sacredwhisperers — sacred wisdom, ancient knowledge, meditation, soulful guidance, contemplative\n"
-    "@revivalofwisdom — revival of classic wisdom, philosophy, timeless insights, quote-style"
+    "@projectwuhu — creative projects, minimal wisdom, SHORT QUOTES ON IMAGE, modern spirituality, clean text overlay\n"
+    "@sacredwhisperers — sacred wisdom, ancient knowledge, MEANINGFUL PHRASES ON EACH SLIDE, meditation, soulful\n"
+    "@revivalofwisdom — revival of classic wisdom, QUOTE-STYLE TEXT ON IMAGES, philosophy, timeless one-liners"
 )
+
+
+def _get_carousel_font(size: int):
+    """Load a bold, readable font for text overlay. Tries system fonts, falls back to default."""
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\segoeuib.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+
+def _wrap_text(draw, text: str, font, max_width: int) -> list:
+    """Wrap text into lines that fit within max_width pixels."""
+    words = text.split()
+    lines = []
+    current = []
+    for w in words:
+        test = " ".join(current + [w])
+        bbox = draw.textbbox((0, 0), test, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            current.append(w)
+        else:
+            if current:
+                lines.append(" ".join(current))
+            current = [w]
+    if current:
+        lines.append(" ".join(current))
+    return lines[:3]  # Max 3 lines per slide
+
+
+def overlay_text_on_slide(image_bytes: bytes, text_line: str) -> bytes:
+    """
+    Overlay one short wisdom/quote line on the image. High contrast, centered,
+    readable — like projectwuhu / sacredwhisperers / revivalofwisdom.
+    """
+    img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+
+    # Font: large enough to read on mobile (guideline 36px+ for headlines)
+    font_size = max(42, min(72, w // 12))
+    font = _get_carousel_font(font_size)
+
+    # Wrap to fit (leave margin)
+    margin = w // 8
+    max_text_width = w - 2 * margin
+    lines = _wrap_text(draw, text_line.strip(), font, max_text_width)
+    if not lines:
+        lines = [text_line.strip()[:50]]
+
+    # Line height and total block height
+    line_height = int(font_size * 1.35)
+    total_height = len(lines) * line_height
+    y_start = (h - total_height) // 2
+
+    # Semi-transparent dark bar behind text for readability (like wisdom carousel accounts)
+    padding = w // 24
+    bar_top = y_start - padding
+    bar_bottom = y_start + total_height + padding
+    bar_left = margin
+    bar_right = w - margin
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rounded_rectangle(
+        [bar_left, bar_top, bar_right, bar_bottom],
+        radius=12,
+        fill=(0, 0, 0, 180),
+        outline=(255, 255, 255, 80),
+    )
+    img = img.convert("RGBA")
+    img = Image.alpha_composite(img, overlay)
+    img = img.convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # Draw text (white, centered)
+    for i, line in enumerate(lines):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        tw = bbox[2] - bbox[0]
+        tx = (w - tw) // 2
+        ty = y_start + i * line_height
+        # Slight shadow for readability
+        draw.text((tx + 1, ty + 1), line, font=font, fill=(0, 0, 0))
+        draw.text((tx, ty), line, font=font, fill=(255, 255, 255))
+    out = BytesIO()
+    img.save(out, format="JPEG", quality=95, optimize=True)
+    out.seek(0)
+    return out.getvalue()
 
 
 def generate_carousel_content():
     """
-    Generate one caption and CAROUSEL_SLIDES image prompts for an Astroboli carousel.
-    Style: like projectwuhu, sacredwhisperers, revivalofwisdom (wisdom carousels, minimal, shareable).
-    Theme: Astroboli — cosmic, astrology, mystical, astroboli.com.
-    Returns (list of image prompts, full caption string, meta dict with hashtags).
+    Generate background prompts, SLIDE TEXTS (meaningful quotes on each image),
+    caption, and hashtags. Style: like projectwuhu, sacredwhisperers, revivalofwisdom
+    — they put SHORT, INTERESTING-TO-READ text ON every slide.
     """
     import google.generativeai as genai
 
@@ -63,30 +161,45 @@ def generate_carousel_content():
 
     prompt = f"""
 You create Instagram CAROUSEL posts for Astroboli (brand: {brand_name}, site: astroboli.com).
-Content must be in the STYLE of these wisdom/quote carousel accounts — study their vibe and copy that approach:
+
+CRITICAL — Study these accounts: @projectwuhu, @sacredwhisperers, @revivalofwisdom. They put MEANINGFUL, SHORT TEXT DIRECTLY ON EACH SLIDE so users stop and read. Each slide has one wisdom quote or impactful line ON THE IMAGE — not just a caption. Your job is to write that kind of content: interesting, readable, shareable lines that go ON each of the 5 images.
 
 {STYLE_REFERENCE_ACCOUNTS}
 
-What they do well: short wisdom, one idea per slide, contemplative, shareable, "save for later", minimal text feel, cohesive visual story. You are NOT posting to those accounts; you are writing for Astroboli in that same style.
-
-Theme for this carousel: Astroboli — cosmic, astrology, zodiac, mystical, celestial guidance. Blend: wisdom-carousel style (like the references) + Astroboli's cosmic/astrology theme.
+Rules for the text ON the images:
+- One short wisdom/quote line PER SLIDE (10–15 words max per slide). This text will be overlaid on the image.
+- Meaningful: cosmic guidance, astrology insight, reflection, manifestation, or timeless wisdom — Astroboli vibe.
+- Tone: contemplative, gentle, memorable. Something users would save or screenshot.
+- No hashtags in the slide text. No "Visit astroboli.com" on the image (that goes in caption only).
+- Each line should stand alone and feel complete.
 
 Generate a JSON object with these keys:
 
-- "image_prompts": An array of exactly {CAROUSEL_SLIDES} prompts for an AI image generator.
-  * Each prompt ~300-500 chars: vivid cosmic/astrology scene, SAME art style across all slides (e.g. "ethereal", "by Peter Mohrbacher", "cosmic surrealism").
-  * Tell a subtle visual story across the slides (e.g. dawn to stars, or one cosmic concept in five variations).
-  * Colors: cohesive Astroboli palette — cosmic purples, celestial golds, ethereal teals.
+- "image_prompts": Array of exactly {CAROUSEL_SLIDES} prompts for an AI image generator (BACKGROUND only; text will be added by us).
+  * Same art style across all: ethereal cosmic, "by Peter Mohrbacher" or cosmic surrealism, deep purples/golds/teals.
+  * Subtle visual story (e.g. dawn to stars). NO text in the image — we overlay text separately.
   * End each with: "masterpiece, 8K, hyperdetailed, square 1:1, no text, no watermarks"
 
-- "caption": One Instagram caption (≤300 chars) for the whole carousel.
-  * Hook in the first line. Wisdom/contemplative tone like the reference accounts, but Astroboli/cosmic.
-  * End with CTA: "✨ Visit astroboli.com for your reading" or "Save this for later" or "Which slide speaks to you?"
-  * Use 2-3 emojis (e.g. 🌙 ✨ 🔮).
+- "slide_texts": Array of exactly {CAROUSEL_SLIDES} SHORT LINES to be OVERLAID ON EACH SLIDE. These are the meaningful quotes/wisdom that appear ON the image (like projectwuhu, sacredwhisperers, revivalofwisdom). Each string 10–15 words max, impactful, interesting to read. Examples of the STYLE: "The stars don't decide your path. You do." / "What you seek is seeking you." / "Your intuition is the universe whispering." — Astroboli/cosmic themed.
 
-- "hashtags": Array of exactly 5 hashtags. First: #{brand_hashtag}. Rest: #Astrology #CosmicEnergy #Spirituality #ZodiacSigns #Manifestation (or similar).
+- "caption": One Instagram caption (≤300 chars) for the whole carousel. Hook + CTA "✨ Visit astroboli.com for your reading" or "Save this for later." Use 2–3 emojis.
+
+- "hashtags": Array of exactly 5. First: #{brand_hashtag}. Rest: #Astrology #CosmicEnergy #Spirituality #ZodiacSigns #Manifestation (or similar).
 
 Return ONLY valid JSON. No markdown fences.
+Example structure:
+{{
+  "image_prompts": ["Ethereal cosmic dawn...", "..."],
+  "slide_texts": [
+    "The stars don't decide your path. You do.",
+    "What you seek is seeking you.",
+    "Your intuition is the universe whispering.",
+    "Trust the timing of your life.",
+    "The cosmos crowns those who listen."
+  ],
+  "caption": "Five reminders from the cosmos. ✨ Save for when you need them. Visit astroboli.com for your reading 🌙",
+  "hashtags": ["#{brand_hashtag}", "#Astrology", "#CosmicEnergy", "#Spirituality", "#ZodiacSigns"]
+}}
 """
 
     genai.configure(api_key=GEMINI_API_KEY)
@@ -107,6 +220,16 @@ Return ONLY valid JSON. No markdown fences.
             prompts[-1]
             if prompts
             else "Ethereal cosmic scene, 1:1, no text, masterpiece"
+        )
+
+    # Slide texts = meaningful lines ON each image (required)
+    raw_slides = data.get("slide_texts") or []
+    if isinstance(raw_slides, str):
+        raw_slides = [s.strip() for s in raw_slides.split("\n") if s.strip()]
+    slide_texts = [str(s).strip()[:200] for s in raw_slides[:CAROUSEL_SLIDES]]
+    while len(slide_texts) < CAROUSEL_SLIDES:
+        slide_texts.append(
+            slide_texts[-1] if slide_texts else "The cosmos speaks to those who listen."
         )
 
     caption_part = (data.get("caption") or data.get("CAPTION") or "").strip()
@@ -134,11 +257,11 @@ Return ONLY valid JSON. No markdown fences.
         caption_part = f"{caption_part.strip()} — Visit astroboli.com"
     full_caption = f"{caption_part}\n\n{hashtags_str}".strip()
 
-    return prompts, full_caption, {"hashtags": top5}
+    return prompts, slide_texts, full_caption, {"hashtags": top5}
 
 
 def send_carousel_email(images_data: list, caption: str):
-    """Send one email with all carousel images and instructions to post to Astroboli's Instagram."""
+    """Send one email with all carousel images (with text on each) and instructions."""
     msg = MIMEMultipart()
     msg["From"] = YOUR_EMAIL
     msg["To"] = YOUR_EMAIL
@@ -148,7 +271,7 @@ def send_carousel_email(images_data: list, caption: str):
 <html>
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
     <h2 style="color: #2D3748;">📸 Astroboli Carousel Ready</h2>
-    <p>One carousel ({len(images_data)} slides) for <strong>Astroboli</strong>. Post in order (slide 1 → {len(images_data)}) to your Astroboli Instagram.</p>
+    <p>One carousel ({len(images_data)} slides) with <strong>meaningful text on each image</strong> — ready to post to Astroboli Instagram. Order: slide 1 → {len(images_data)}.</p>
     <div style="background: #EDF2F7; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #2D3748; margin-top: 0;">Caption & Hashtags</h3>
         <p style="white-space: pre-wrap; color: #4A5568;">{caption}</p>
@@ -163,7 +286,7 @@ def send_carousel_email(images_data: list, caption: str):
             <li>Tap <strong>Share</strong></li>
         </ol>
     </div>
-    <p style="color: #718096; font-size: 14px;">Attachments: {len(images_data)} images (1080×1080 each)</p>
+    <p style="color: #718096; font-size: 14px;">Attachments: {len(images_data)} images (1080×1080, text on each)</p>
 </body>
 </html>
 """
@@ -178,12 +301,12 @@ def send_carousel_email(images_data: list, caption: str):
     server.login(YOUR_EMAIL, EMAIL_PASSWORD)
     server.send_message(msg)
     server.quit()
-    print(f"Email sent: Astroboli carousel with {len(images_data)} slides.")
+    print(f"Email sent: Astroboli carousel with {len(images_data)} slides (text on each).")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Astroboli Instagram Carousel Bot — single post for Astroboli"
+        description="Astroboli Instagram Carousel Bot — meaningful text on each slide"
     )
     parser.add_argument(
         "--dry-run",
@@ -208,38 +331,41 @@ def main():
             prompts = [
                 "Ethereal cosmic dawn, soft gold and purple, 1:1, no text, masterpiece",
             ] * CAROUSEL_SLIDES
+            slide_texts = [
+                "The stars don't decide your path. You do.",
+                "What you seek is seeking you.",
+                "Your intuition is the universe whispering.",
+                "Trust the timing of your life.",
+                "The cosmos crowns those who listen.",
+            ]
             caption = (
-                "Wisdom in five frames. ✨ Visit astroboli.com for your reading.\n\n"
+                "Five reminders from the cosmos. ✨ Visit astroboli.com for your reading.\n\n"
                 "#AstroboliAI #Astrology #CosmicEnergy #Spirituality #ZodiacSigns"
             )
-            meta = {
-                "hashtags": [
-                    "#AstroboliAI",
-                    "#Astrology",
-                    "#CosmicEnergy",
-                    "#Spirituality",
-                    "#ZodiacSigns",
-                ]
-            }
+            meta = {"hashtags": ["#AstroboliAI", "#Astrology", "#CosmicEnergy", "#Spirituality", "#ZodiacSigns"]}
         else:
-            prompts, caption, meta = generate_carousel_content()
-        print(f"Caption:\n{caption}")
+            prompts, slide_texts, caption, meta = generate_carousel_content()
+        print("Slide texts (on each image):")
+        for i, t in enumerate(slide_texts, 1):
+            print(f"  {i}. {t}")
+        print(f"\nCaption:\n{caption}")
 
         if args.dry_run:
             print(
-                f"Dry-run: would generate {len(prompts)} images and send one Astroboli carousel email."
+                f"Dry-run: would generate {len(prompts)} images, overlay text on each, and send one Astroboli carousel email."
             )
             exit(0)
 
         images_data = []
-        for i, p in enumerate(prompts, start=1):
-            print(f"Generating slide {i}/{len(prompts)}...")
+        for i, (p, text_line) in enumerate(zip(prompts, slide_texts), start=1):
+            print(f"Generating slide {i}/{len(prompts)} (text: \"{text_line[:40]}...\")...")
             raw = generate_image(p)
             processed = process_for_instagram(raw)
-            images_data.append(processed)
+            with_text = overlay_text_on_slide(processed, text_line)
+            images_data.append(with_text)
 
         send_carousel_email(images_data, caption)
-        print("\n✨ Astroboli carousel done. Check your email and post to Instagram.")
+        print("\n✨ Astroboli carousel done (meaningful text on each slide). Check your email and post to Instagram.")
     except Exception as e:
         print(f"Error: {e}")
         exit(1)
