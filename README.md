@@ -168,6 +168,14 @@ Edit the caption generation logic in `daily_bot.py`
 ### Multiple Posts Per Day
 Duplicate the cron schedule in `daily_post.yml`
 
+### Instagram Carousel (Multiple IDs)
+The **Instagram Carousel Posts (Multiple IDs)** workflow generates a 5-slide carousel per account and emails it. Target accounts (set in the workflow matrix):
+- **projectwuhu** — creative projects, minimal wisdom
+- **sacredwhisperers** — sacred wisdom, meditation, soulful guidance
+- **revivalofwisdom** — classic wisdom, philosophy, timeless insights
+
+Run from **Actions** → **Instagram Carousel Posts (Multiple IDs)** → **Run workflow**. Each run creates three jobs (one per account). Same secrets as the daily post (`GEMINI_API_KEY`, `YOUR_EMAIL`, `EMAIL_PASSWORD`, `POLLINATION_API_KEY`).
+
 ---
 
 ## 📁 Project Structure
@@ -180,7 +188,9 @@ iOSGeminiApp/
 ├── secrets.env.template      # Template for setup
 ├── sync_secrets.ps1          # Upload secrets to GitHub
 ├── .github/workflows/
-│   └── daily_post.yml        # GitHub Actions schedule
+│   ├── daily_post.yml        # Daily single post + reel
+│   └── insta_carousel_posts.yml  # Weekly carousel for multiple Insta IDs
+├── carousel_bot.py           # Carousel generator (5 slides + caption per INSTA_ID)
 └── README.md                 # This file
 ```
 
